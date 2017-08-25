@@ -28,6 +28,16 @@ public class OracleArchive extends Device implements ArchiveStore {
     public OracleArchive (String name, Map<String,String> config)  {
         super(name, config);
 
+        // This is what a typical config might look like.
+        /*
+         "username", "ianthe.sutherland@ed.ac.uk"
+        "password", "r3p0s1t0rY"
+        "serviceName", "Storage"
+        "serviceUrl", "https://a512814.storage.oraclecloud.com"
+        "identityDomain", "a512814"
+        "containerName", "datavault-test"
+        */
+
         auth = new FileTransferAuth(
                 config.get("username"),
                 config.get("password").toCharArray(),
