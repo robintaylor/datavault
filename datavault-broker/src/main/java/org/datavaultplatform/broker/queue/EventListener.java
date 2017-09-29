@@ -20,6 +20,7 @@ public class EventListener implements MessageListener {
     private EventService eventService;
     private VaultsService vaultsService;
     private DepositsService depositsService;
+    private ArchiveStoreService archiveStoreService;
     private ArchivesService archivesService;
     private RetrievesService retrievesService;
     private UsersService usersService;
@@ -31,6 +32,7 @@ public class EventListener implements MessageListener {
     public void setEventService(EventService eventService) { this.eventService = eventService; }
     public void setVaultsService(VaultsService vaultsService) { this.vaultsService = vaultsService; }
     public void setDepositsService(DepositsService depositsService) { this.depositsService = depositsService; }
+    public void setArchiveStoreService(ArchiveStoreService archiveStoreService) {this.archiveStoreService = archiveStoreService;}
     public void setArchivesService(ArchivesService archivesService) { this.archivesService = archivesService;}
     public void setRetrievesService(RetrievesService retrievesService) { this.retrievesService = retrievesService; }
     public void setUsersService(UsersService usersService) { this.usersService = usersService; }
@@ -56,7 +58,9 @@ public class EventListener implements MessageListener {
 
             // Get the related archive
             // todo : allow for multiple backend archives, at the moment we will just assume there is one
-            Archive archive = archivesService.getArchives().get(0);
+            ////Archive archive = archivesService.getArchives().get(0);
+
+            List<Archive> archives = archivesService.getArchives();
             
             // Get the related job
             Job job = jobsService.getJob(concreteEvent.getJobId());
@@ -198,7 +202,7 @@ public class EventListener implements MessageListener {
                 
             } else if (concreteEvent instanceof Complete) {
 
-                // Update the deposit status and archive properties
+                // Update the deposit status and add archives
                 Complete completeEvent = (Complete)concreteEvent;
                 
                 Boolean success = false;
@@ -208,8 +212,11 @@ public class EventListener implements MessageListener {
                         deposit.setArchiveSize(completeEvent.getArchiveSize());
                         depositsService.updateDeposit(deposit);
 
-                        archive.setArchiveId(completeEvent.getArchiveId());
-                        archivesService.updateArchive(archive);
+                        // Add the archive objects, one for each archiveStore
+                        for (String archiveStoreId : completeEvent.getArchiveIds().keySet()) {
+                            ArchiveStore archiveStore = archiveStoreService.getArchiveStore(archiveStoreId);
+                            archivesService.addArchive(deposit, archiveStore, completeEvent.getArchiveIds().get(archiveStoreId));
+                        }
 
                         success = true;
                     } catch (org.hibernate.StaleObjectStateException e) {

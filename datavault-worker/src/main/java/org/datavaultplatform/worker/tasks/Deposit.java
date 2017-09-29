@@ -1,5 +1,6 @@
 package org.datavaultplatform.worker.tasks;
 
+import java.util.List;
 import java.util.Map;
 import java.io.File;
 import java.lang.reflect.Constructor;
@@ -12,6 +13,8 @@ import org.apache.commons.io.FileUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.datavaultplatform.common.model.*;
+import org.datavaultplatform.common.storage.ArchiveStore;
 import org.datavaultplatform.common.task.Context;
 import org.datavaultplatform.common.task.Task;
 import org.datavaultplatform.common.event.Error;
@@ -39,7 +42,15 @@ public class Deposit extends Task {
     EventSender eventStream;
     Device userFs;
     UserStore userStore;
-    ArchiveStore archiveFs;
+
+    // todo: I'm sure these two maps could be combined in some way.
+
+    // Maps the model ArchiveStore Id to the storage equivelant
+    HashMap<String, ArchiveStore> archiveStores = new HashMap<>();
+
+    // Maps the model ArchiveStore Id to the generated Archive Id
+    HashMap<String, String> archiveIds = new HashMap<>();
+
     String depositId;
     String bagID;
     String userID;
@@ -69,7 +80,8 @@ public class Deposit extends Task {
         String depositMetadata = properties.get("depositMetadata");
         String vaultMetadata = properties.get("vaultMetadata");
         String externalMetadata = properties.get("externalMetadata");
-        
+
+        // Note to myself - these states are displayed in the progress bar of a deposit. I think they are recorded as Job states?
         ArrayList<String> states = new ArrayList<>();
         states.add("Calculating size");     // 0
         states.add("Transferring");         // 1
@@ -102,18 +114,22 @@ public class Deposit extends Task {
             return;
         }
         
-        // Connect to the archive storage
-        try {
-            Class<?> clazz = Class.forName(archiveFileStore.getStorageClass());
-            Constructor<?> constructor = clazz.getConstructor(String.class, Map.class);
-            Object instance = constructor.newInstance(archiveFileStore.getStorageClass(), archiveFileStore.getProperties());
-            archiveFs = (ArchiveStore)instance;
-        } catch (Exception e) {
-            String msg = "Deposit failed: could not access archive filesystem";
-            logger.error(msg, e);
-            eventStream.send(new Error(jobID, depositId, msg)
-                .withUserId(userID));
-            return;
+        // Connect to the archive storage(s). Look out! There are two classes called archiveStore.
+        for (org.datavaultplatform.common.model.ArchiveStore archiveFileStore : archiveFileStores ) {
+            try {
+                Class<?> clazz = Class.forName(archiveFileStore.getStorageClass());
+                Constructor<?> constructor = clazz.getConstructor(String.class, Map.class);
+                Object instance = constructor.newInstance(archiveFileStore.getStorageClass(), archiveFileStore.getProperties());
+
+                archiveStores.put(archiveFileStore.getID(), (ArchiveStore)instance);
+
+            } catch (Exception e) {
+                String msg = "Deposit failed: could not access archive filesystem : " + archiveFileStore.getStorageClass();
+                logger.error(msg, e);
+                eventStream.send(new Error(jobID, depositId, msg)
+                        .withUserId(userID));
+                return;
+            }
         }
         
         logger.info("Deposit file: " + filePath);
@@ -184,7 +200,7 @@ public class Deposit extends Task {
                 
                 // Copy the resulting tar file to the archive area
                 logger.info("Copying tar file to archive ...");
-                String archiveId = copyToArchiveStorage(tarFile);
+                copyToArchiveStorage(tarFile);
                 
                 // Cleanup
                 logger.info("Cleaning up ...");
@@ -195,30 +211,11 @@ public class Deposit extends Task {
                     .withNextState(4));
                 
                 logger.info("Verifying archive package ...");
-                logger.info("Verification method: " + archiveFs.getVerifyMethod());
+                verifyArchive(context, tarFile, tarHash);
                 
-                // Get the tar file
+                logger.info("Deposit complete");
                 
-                if (archiveFs.getVerifyMethod() == Verify.Method.LOCAL_ONLY) {
-                    
-                    // Verify the contents of the temporary file
-                    verifyTarFile(context.getTempDir(), tarFile, null);
-                    
-                } else if (archiveFs.getVerifyMethod() == Verify.Method.COPY_BACK) {
-
-                    // Delete the existing temporary file
-                    tarFile.delete();
-                    
-                    // Copy file back from the archive storage
-                    copyBackFromArchive(archiveId, tarFile);
-                    
-                    // Verify the contents
-                    verifyTarFile(context.getTempDir(), tarFile, tarHash);
-                }
-                
-                logger.info("Deposit complete: " + archiveId);
-                
-                eventStream.send(new Complete(jobID, depositId, archiveId, archiveSize)
+                eventStream.send(new Complete(jobID, depositId, archiveIds, archiveSize)
                     .withUserId(userID)
                     .withNextState(5));
                 
@@ -234,7 +231,9 @@ public class Deposit extends Task {
                 .withUserId(userID));
         }
     }
-    
+
+
+
     private void copyFromUserStorage(String filePath, Path bagPath) throws Exception {
 
         String fileName = userStore.getName(filePath);
@@ -267,34 +266,71 @@ public class Deposit extends Task {
         }
     }
     
-    private String copyToArchiveStorage(File tarFile) throws Exception {
+    private void copyToArchiveStorage(File tarFile) throws Exception {
 
-        // Progress tracking (threaded)
-        Progress progress = new Progress();
-        ProgressTracker tracker = new ProgressTracker(progress, jobID, depositId, tarFile.length(), eventStream);
-        Thread trackerThread = new Thread(tracker);
-        trackerThread.start();
+        for (String archiveStoreId : archiveStores.keySet() ) {
+            ArchiveStore archiveStore = archiveStores.get(archiveStoreId);
 
-        String archiveId;
+            // Progress tracking (threaded)
+            Progress progress = new Progress();
+            ProgressTracker tracker = new ProgressTracker(progress, jobID, depositId, tarFile.length(), eventStream);
+            Thread trackerThread = new Thread(tracker);
+            trackerThread.start();
 
-        try {
-            archiveId = ((Device)archiveFs).store("/", tarFile, progress);
-        } finally {
-            // Stop the tracking thread
-            tracker.stop();
-            trackerThread.join();
+            String archiveId;
+
+            try {
+                archiveId = ((Device) archiveStore).store("/", tarFile, progress);
+            } finally {
+                // Stop the tracking thread
+                tracker.stop();
+                trackerThread.join();
+            }
+
+            logger.info("Copied: " + progress.dirCount + " directories, " + progress.fileCount + " files, " + progress.byteCount + " bytes");
+
+            archiveIds.put(archiveStoreId, archiveId);
         }
-
-        logger.info("Copied: " + progress.dirCount + " directories, " + progress.fileCount + " files, " + progress.byteCount + " bytes");
-        
-        return archiveId;
     }
-    
-    private void copyBackFromArchive(String archiveId, File tarFile) throws Exception {
+
+    private void verifyArchive(Context context, File tarFile, String tarHash) throws Exception {
+
+        boolean alreadyVerified = false;
+
+        for (String archiveStoreId : archiveStores.keySet() ) {
+            ArchiveStore archiveStore = archiveStores.get(archiveStoreId);
+            String archiveId = archiveIds.get(archiveStoreId);
+
+            logger.info("Verification method: " + archiveStore.getVerifyMethod());
+
+            // Get the tar file
+
+            if ((archiveStore.getVerifyMethod() == Verify.Method.LOCAL_ONLY) && (!alreadyVerified)){
+
+                // Verify the contents of the temporary file
+                verifyTarFile(context.getTempDir(), tarFile, null);
+
+            } else if (archiveStore.getVerifyMethod() == Verify.Method.COPY_BACK) {
+
+                alreadyVerified = true;
+
+                // Delete the existing temporary file
+                tarFile.delete();
+
+                // Copy file back from the archive storage
+                copyBackFromArchive(archiveStore, archiveId, tarFile);
+
+                // Verify the contents
+                verifyTarFile(context.getTempDir(), tarFile, tarHash);
+            }
+        }
+    }
+
+    private void copyBackFromArchive(ArchiveStore archiveStore, String archiveId, File tarFile) throws Exception {
         
         // Ask the driver to copy files to the temp directory
         Progress progress = new Progress();
-        ((Device)archiveFs).retrieve(archiveId, tarFile, progress);
+        ((Device)archiveStore).retrieve(archiveId, tarFile, progress);
         logger.info("Copied: " + progress.dirCount + " directories, " + progress.fileCount + " files, " + progress.byteCount + " bytes");
     }
     

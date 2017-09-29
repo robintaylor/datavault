@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 @RestController
 public class ArchiveStoreController {
+
+    // todo: I think this class is redundant, delete it!
     
     private ArchiveStoreService archiveStoreService;
     

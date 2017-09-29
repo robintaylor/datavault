@@ -26,6 +26,10 @@ public class ArchiveStoreService {
         return archiveStoreDAO.findById(archiveStoreID);
     }
 
+    public ArchiveStore getForRetrieval() {
+        return archiveStoreDAO.findForRetrieval();
+    }
+
     public void deleteArchiveStore(String archiveStoreID) {
         archiveStoreDAO.deleteById(archiveStoreID);
     }

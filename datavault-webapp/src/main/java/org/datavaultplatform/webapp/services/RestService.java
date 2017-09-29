@@ -101,6 +101,11 @@ public class RestService {
         return (ArchiveStore[])response.getBody();
     }
 
+    public ArchiveStore getArchiveStore(String archiveStoreID) {
+        HttpEntity<?> response = get(brokerURL + "/admin/archivestores/" + archiveStoreID, ArchiveStore.class);
+        return (ArchiveStore)response.getBody();
+    }
+
 
     
     public FileInfo[] getFilesListing(String filePath) {
@@ -366,6 +371,11 @@ public class RestService {
 
     public ArchiveStore addArchiveStore(ArchiveStore archiveStore) {
         HttpEntity<?> response = post(brokerURL + "/admin/archivestores/", ArchiveStore.class, archiveStore);
+        return (ArchiveStore)response.getBody();
+    }
+
+    public ArchiveStore editArchiveStore(ArchiveStore archiveStore) {
+        HttpEntity<?> response = put(brokerURL + "/admin/archivestores/", ArchiveStore.class, archiveStore);
         return (ArchiveStore)response.getBody();
     }
 

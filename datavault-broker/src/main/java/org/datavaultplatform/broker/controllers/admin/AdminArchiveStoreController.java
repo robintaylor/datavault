@@ -2,35 +2,37 @@ package org.datavaultplatform.broker.controllers.admin;
 
 import org.datavaultplatform.broker.services.ArchiveStoreService;
 import org.datavaultplatform.common.model.ArchiveStore;
-import org.datavaultplatform.common.model.FileStore;
-import org.datavaultplatform.common.model.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @RestController
 public class AdminArchiveStoreController {
     
     private ArchiveStoreService archiveStoreService;
+
+    private static final Logger logger = LoggerFactory.getLogger(AdminArchiveStoreController.class);
     
     public void setArchiveStoreService(ArchiveStoreService archiveStoreService) {
         this.archiveStoreService = archiveStoreService;
     }
-    
+
     @RequestMapping(value = "/admin/archivestores", method = RequestMethod.GET)
-    public List<ArchiveStore> getArchiveStores(@RequestHeader(value = "X-UserID", required = true) String userID) {
-               
+    public ResponseEntity<List<ArchiveStore>> getArchiveStores(@RequestHeader(value = "X-UserID", required = true) String userID) {
+
         List<ArchiveStore> archiveStores = archiveStoreService.getArchiveStores();
-        /*
-        for (ArchiveStore store : archiveStores) {
-            // For now - strip out config information
-            store.setProperties(null);
-        }
-        */
-        
-        return archiveStores;
+        return new ResponseEntity<>(archiveStores, HttpStatus.OK);
+    }
+
+    @RequestMapping(value = "/admin/archivestores/{archivestoreid}", method = RequestMethod.GET)
+    public ResponseEntity<ArchiveStore> getArchiveStore(@RequestHeader(value = "X-UserID", required = true) String userID, @PathVariable("archivestoreid") String archivestoreid) {
+
+        return new ResponseEntity<>(archiveStoreService.getArchiveStore(archivestoreid), HttpStatus.OK);
     }
     
     @RequestMapping(value = "/admin/archivestores", method = RequestMethod.POST)
@@ -39,6 +41,14 @@ public class AdminArchiveStoreController {
         
         archiveStoreService.addArchiveStore(store);
         return new ResponseEntity<>(store, HttpStatus.CREATED);
+    }
+
+    @RequestMapping(value = "/admin/archivestores", method = RequestMethod.PUT)
+    public ResponseEntity<ArchiveStore> editArchiveStore(@RequestHeader(value = "X-UserID", required = true) String userID,
+                                                        @RequestBody ArchiveStore store) throws Exception {
+
+        archiveStoreService.updateArchiveStore(store);
+        return new ResponseEntity<>(store, HttpStatus.OK);
     }
 
     @RequestMapping(value = "/admin/archivestores/{archivestoreid}", method = RequestMethod.DELETE)

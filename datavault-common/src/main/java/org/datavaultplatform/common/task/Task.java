@@ -2,6 +2,7 @@ package org.datavaultplatform.common.task;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.util.List;
 import java.util.Map;
 import org.datavaultplatform.common.model.FileStore;
 import org.datavaultplatform.common.model.ArchiveStore;
@@ -16,7 +17,7 @@ public class Task {
     protected String jobID;
     Map<String, String> properties;
     protected FileStore userFileStore;
-    protected ArchiveStore archiveFileStore;
+    protected List<ArchiveStore> archiveFileStores;
 
     private boolean isRedeliver;
 
@@ -24,12 +25,13 @@ public class Task {
     public Task(Job job,
                 Map<String, String> properties,
                 FileStore userFileStore,
-                ArchiveStore archiveFileStore) {
+                List<ArchiveStore> archiveFileStores) {
+
         this.jobID = job.getID();
         this.taskClass = job.getTaskClass();
         this.properties = properties;
         this.userFileStore = userFileStore;
-        this.archiveFileStore = archiveFileStore;
+        this.archiveFileStores = archiveFileStores;
     }
 
     public String getJobID() { return jobID; }
@@ -60,12 +62,12 @@ public class Task {
         this.userFileStore = userFileStore;
     }
 
-    public ArchiveStore getArchiveFileStore() {
-        return archiveFileStore;
+    public List<ArchiveStore> getArchiveFileStores() {
+        return archiveFileStores;
     }
 
-    public void setArchiveFileStore(ArchiveStore archiveFileStore) {
-        this.archiveFileStore = archiveFileStore;
+    public void setArchiveFileStores(List<ArchiveStore> archiveFileStores) {
+        this.archiveFileStores = archiveFileStores;
     }
 
     public boolean isRedeliver() {

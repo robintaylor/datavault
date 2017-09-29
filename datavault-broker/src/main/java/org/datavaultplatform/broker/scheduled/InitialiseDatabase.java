@@ -42,9 +42,26 @@ public class InitialiseDatabase {
         if (archiveStores.isEmpty()) {
             HashMap<String,String> storeProperties = new HashMap<String,String>();
             storeProperties.put("rootPath", archiveDir);
-            ArchiveStore store = new ArchiveStore("org.datavaultplatform.common.storage.impl.LocalFileSystem", storeProperties, "Default archive store (local)");
+            ArchiveStore store = new ArchiveStore("org.datavaultplatform.common.storage.impl.LocalFileSystem", storeProperties, "Default archive store (local)", true);
             archiveStoreService.addArchiveStore(store);
         }
+
+
+        /*
+        List<ArchiveStore> archiveStores = archiveStoreService.getArchiveStores();
+        if (archiveStores.isEmpty()) {
+            HashMap<String,String> storeProperties = new HashMap<String,String>();
+            storeProperties.put("username", "ianthe.sutherland@ed.ac.uk");
+            storeProperties.put("password", "bigsecret");
+            storeProperties.put("serviceName", "Storage");
+            storeProperties.put("serviceUrl", "https://a512814.storage.oraclecloud.com");
+            storeProperties.put("identityDomain", "a512814");
+            storeProperties.put("containerName", "datavault-test");
+
+            ArchiveStore store = new ArchiveStore("org.datavaultplatform.common.storage.impl.OracleArchive", storeProperties, "Archive store (Oracle)");
+            archiveStoreService.addArchiveStore(store);
+        }
+        */
 
     }
 }

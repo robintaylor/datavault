@@ -36,7 +36,6 @@ public class Archive {
     @Column(columnDefinition = "TEXT")
     private String archiveId;
 
-
     public void setCreationTime(Date creationTime) {
         this.creationTime = creationTime;
     }
